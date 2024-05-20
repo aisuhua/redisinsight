@@ -1,0 +1,40 @@
+version: "3.9"
+
+volumes:
+  redisinsight:
+    driver: local
+
+networks:
+  redis-network:
+    driver: bridge
+
+services:
+  redisinsight:
+    image: redis/redisinsight:2.48.0
+    volumes:
+      - redisinsight:/data
+    networks:
+      - redis-network
+
+  nginx-basicauth:
+    image: nginx:1.26.0
+    volumes:
+      - ./nginx-basic-auth.conf.template:/etc/nginx/templates/nginx-basic-auth.conf.template
+    ports:
+      - "${NGINX_PORT:-5540}:${NGINX_PORT:-5540}"
+    environment:
+      - FORWARD_HOST=redisinsight
+      - FORWARD_PORT=${RIPORT:-5540}
+      - NGINX_PORT=${NGINX_PORT:-5540}
+      - BASIC_USERNAME=${BASIC_USERNAME:-redisri}
+      - BASIC_PASSWORD=${BASIC_PASSWORD:-password}
+    command:
+      - bash
+      - -c
+      - |
+        printf "$$BASIC_USERNAME:$$(openssl passwd -1 $$BASIC_PASSWORD)\n" >> /etc/nginx/.htpasswd
+        /docker-entrypoint.sh nginx -g "daemon off;"
+    depends_on:
+      - redisinsight
+    networks:
+      - redis-network
